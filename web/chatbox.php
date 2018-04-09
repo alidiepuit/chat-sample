@@ -2,12 +2,11 @@
 require_once "lib/application.php";
 require_once "lib/AuthManager.php";
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  AuthManager::getInstance()->login($_POST['username'], $_POST['password']);
-}
-
 $user = AuthManager::getInstance()->getIdentity();
+
+if ($user) {
 ?>
+<h1>Welcome: <?=$user['first_name']?>, <a href="/logout.php">logout</a></h1>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
   <link href="/static/css/bootstrap.min.css" rel="stylesheet">
   <link href="/static/css/chatbox.css?v=<?=rand()?>" rel="stylesheet">
@@ -52,7 +51,7 @@ $user = AuthManager::getInstance()->getIdentity();
            </div>
          </div>
          <div class="image panel-body msg_container_base">
-            <a class="load_more_message hide">Loading Messages...</a>
+            <a class="load_more_message">Load more messages...</a>
             <div class="spinner hide">
                <div class="bounce1"></div>
                <div class="bounce2"></div>
@@ -67,3 +66,7 @@ $user = AuthManager::getInstance()->getIdentity();
       </div>
    </div>
 </div>
+<?php } else {
+  header('Location: ' . BASE_URL . 'index.php');
+}
+?>

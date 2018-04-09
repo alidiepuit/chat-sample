@@ -16,6 +16,6 @@ if (empty($user)) {?>
 </form>
 
 <?php } else {
-  include 'chatbox.php';
+  header('Location: ' . BASE_URL . 'chatbox.php');
 }
 ?>
