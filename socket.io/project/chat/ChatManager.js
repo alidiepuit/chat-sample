@@ -165,14 +165,12 @@ class ChatManager {
 
     var query = 'SELECT chat.user_id, chat.contact_id, chat.ads_id, \
       users.username, users.avatar, users.first_name, \
-      class_ads.title as ads_title, \
       (SELECT message FROM chatbox_contact WHERE chatbox_contact.user_id=? AND chatbox_contact.contact_id=chat.contact_id AND chatbox_contact.ads_id=chat.ads_id ORDER BY id DESC LIMIT 1) as message, \
       (SELECT UNIX_TIMESTAMP(create_at) FROM chatbox_contact WHERE chatbox_contact.user_id=? AND chatbox_contact.contact_id=chat.contact_id AND chatbox_contact.ads_id=chat.ads_id ORDER BY id DESC LIMIT 1) as time, \
       (SELECT id FROM chatbox_contact WHERE chatbox_contact.user_id=? AND chatbox_contact.contact_id=chat.contact_id AND chatbox_contact.ads_id=chat.ads_id ORDER BY id DESC LIMIT 1) as id, \
       (SELECT contact_id FROM chatbox_block WHERE user_id=? AND chatbox_block.contact_id=chat.contact_id) as blocked \
       FROM chatbox_contact as chat \
       LEFT JOIN users ON chat.contact_id=users.id \
-      LEFT JOIN class_ads ON chat.ads_id=class_ads.id \
       WHERE chat.user_id=? \
       GROUP BY chat.user_id,chat.contact_id,chat.ads_id';
     var args = [userId,userId,userId,userId,userId];
@@ -181,14 +179,12 @@ class ChatManager {
 
     query = 'SELECT chat.user_id as contact_id, chat.contact_id as user_id, chat.ads_id, \
         users.username, users.avatar, users.first_name, \
-        class_ads.title as ads_title, \
         (SELECT message FROM chatbox_contact WHERE chatbox_contact.user_id=chat.user_id AND chatbox_contact.contact_id=? AND chatbox_contact.ads_id=chat.ads_id ORDER BY id DESC LIMIT 1) as message, \
         (SELECT UNIX_TIMESTAMP(create_at) FROM chatbox_contact WHERE chatbox_contact.user_id=chat.user_id AND chatbox_contact.contact_id=? AND chatbox_contact.ads_id=chat.ads_id ORDER BY id DESC LIMIT 1) as time, \
         (SELECT id FROM chatbox_contact WHERE chatbox_contact.user_id=chat.user_id AND chatbox_contact.contact_id=? AND chatbox_contact.ads_id=chat.ads_id ORDER BY id DESC LIMIT 1) as id, \
         (SELECT contact_id FROM chatbox_block WHERE user_id=? AND chatbox_block.contact_id=chat.user_id) as blocked \
         FROM chatbox_contact as chat \
         LEFT JOIN users ON chat.user_id=users.id \
-        LEFT JOIN class_ads ON chat.ads_id=class_ads.id \
         WHERE chat.contact_id=? \
         GROUP BY chat.user_id,chat.contact_id,chat.ads_id';
     //query contact when userId is the one who receive message

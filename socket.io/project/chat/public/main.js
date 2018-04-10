@@ -36,7 +36,7 @@ $(function() {
             });
 
   var token = sessId || "";
-  
+
   socket.emit("getToken", {token: token});
 
   if (username) {
@@ -100,7 +100,7 @@ $(function() {
     }
 
     var $eleMain = $('<div class="col-sm-9 col-xs-9 sideBar-main"/>')
-      .append($('<div class="row"/>').append($('<div class="sideBar-name"/>').append($('<div class="name-meta"/>').html(displayName + '<h6>'+aTitle+'</h6>')).append($timeEle)));
+      .append($('<div class="row"/>').append($('<div class="sideBar-name"/>').append($('<div class="name-meta"/>').html(displayName)).append($timeEle)));
 
     if (message) {
       $eleMain = $('<div class="col-sm-9 col-xs-9 sideBar-main"/>')
@@ -152,7 +152,7 @@ $(function() {
     $(chatbox).find('.btn-chat').attr('data-target', tar);
     $(chatbox).find('.inputMessage').attr('data-target', tar);
     $(chatbox).find('.spinner').attr('data-target', tar);
-    $(chatbox).find('.panel-title').html(''+displayName + '<h6>' + adsTitle + '</h6>');
+    $(chatbox).find('.panel-title').html(''+displayName);
 
     $(chatbox).find('.block-contact').attr('data-target', tar);
     $(chatbox).find('.block-contact').attr('data-ads-id', aId);
