@@ -55,22 +55,18 @@ $(function() {
 
   // Sends a chat message
   function sendMessage () {
-    var message = $('#input_' + target + '_' + adsId).val();
+    var message = $('#input_' + target).val();
     // Prevent markup from being injected into the message
     message = cleanInput(message);
     // if there is a non-empty message and a socket connection
     if (message && connected) {
-      $('#input_' + target + '_' + adsId).val('');
+      $('#input_' + target).val('');
       
-      adsId = $('#' + target + '_' + adsId).data('ads-id');
-      adsTitle = $('#' + target + '_' + adsId).data('ads-title');
       // tell server to execute 'new message' and send along one parameter
       socket.emit('new message', {
         message: message,
         target: target,
         displayName: displayName,
-        adsId: adsId || 0,
-        adsTitle: adsTitle || '',
       });
     }
   }
@@ -84,12 +80,10 @@ $(function() {
   $('.button-open-chatbox').click(function() {
     target = $(this).data('chatbox');
     name = $(this).data('name');
-    adsId = $(this).data('ads-id');
-    adsTitle = $(this).data('ads-title');
-    openChatBox(target, adsId, name);
+    openChatBox(target, name);
   });
 
-  function addContact(tar, aId, aTitle, displayName, message, container, blocked, time, avatar) {
+  function addContact(tar, displayName, message, container, blocked, time, avatar) {
     var $img = avatar ? $('<img src="/static/image/' + avatar + '"/>') : $('<span class="icon-user"/>');
     var $eleAvatar = $('<div class="col-sm-3 col-xs-3 sideBar-avatar pinky-template"/>')
       .append($('<div class="avatar-icon"/>').append($('<span class="tg-usericon"/>').append($img).append('<span ng-if="" fl-online-offline-icon="" size="" class="GroupChatThumbnail-onlineStatus online-status" data-user-id="'+tar+'" data-size="small" data-status="offline"></span>')));
@@ -107,7 +101,7 @@ $(function() {
       .append($('<div class="row"/>').append($('<div class="sideBar-name"/>').append($('<div class="name-meta"/>').html(displayName + '<h6>'+message+'</h6>')).append($timeEle)));
     }
 
-    var $eleBody = $('<div class="row sideBar-body" data-target="'+tar+'" data-ads-id="'+aId+'" data-display-name="'+displayName+'" data-ads-title="'+aTitle+'" data-blocked="'+blocked+'"/>')
+    var $eleBody = $('<div class="row sideBar-body" data-target="'+tar+'" data-display-name="'+displayName+'" data-blocked="'+blocked+'"/>')
       .append($eleAvatar)
       .append($eleMain);
 
@@ -124,28 +118,22 @@ $(function() {
     $('.row.sideBar-body').unbind('click');
     $('.row.sideBar-body').click(function(event) {
       target = $(this).data('target');
-      adsId = $(this).data('ads-id');
-      adsTitle = $(this).data('ads-title');
       var displayName = $(this).data('display-name');
-      openChatBox(target, adsId, displayName);
+      openChatBox(target, displayName);
     })
 
   }
 
-  function openChatBox(tar, aId, displayName) {
-    if ($('#' + tar + '_' + aId).length > 0) {
+  function openChatBox(tar, displayName) {
+    if ($('#' + tar).length > 0) {
       return;
     }
 
 
     var chatbox = $('#chatbox_template').clone();
-    $(chatbox).attr('id', tar + '_' + aId);
+    $(chatbox).attr('id', tar);
     $(chatbox).find('.chatbox-close').attr('data-target', tar);
-    $(chatbox).find('.chatbox-close').attr('data-ads-id', aId);
-    $(chatbox).attr('data-ads-id', aId);
-    $(chatbox).attr('data-ads-title', adsTitle);
     $(chatbox).find('.load_more_message').attr('data-target', tar);
-    $(chatbox).find('.load_more_message').attr('data-ads-id', aId);
     $(chatbox).removeAttr('data-chatbox-template');
     $('#chat-box').prepend(chatbox);
     $(chatbox).addClass('show');
@@ -155,9 +143,7 @@ $(function() {
     $(chatbox).find('.panel-title').html(''+displayName);
 
     $(chatbox).find('.block-contact').attr('data-target', tar);
-    $(chatbox).find('.block-contact').attr('data-ads-id', aId);
     $(chatbox).find('.unblock-contact').attr('data-target', tar);
-    $(chatbox).find('.unblock-contact').attr('data-ads-id', aId);
 
     if (listBlocked[tar]) {
       $(chatbox).find('.unblock-contact').removeClass('hide');
@@ -170,9 +156,8 @@ $(function() {
       $('#chat-box').find('.chatbox.row.chat-window:not(.hide):not([data-chatbox-template]):last').removeClass('show').addClass('hide');
     }
 
-    $messages = $('#' + tar + '_' + aId).find('.msg_container_base');
+    $messages = $('#' + tar).find('.msg_container_base');
     $messages.attr('data-target', tar);
-    $messages.attr('data-ads-id', aId);
     /*
     Load more history
     */
@@ -197,13 +182,12 @@ $(function() {
             $(this).scrollTop(scrollTo + $(this).scrollTop());
         }
     });
-    $inputMessage = $('#' + tar + '_' + aId).find('.inputMessage');
-    $($inputMessage).attr('id', 'input_' + tar + '_' + aId);
+    $inputMessage = $('#' + tar).find('.inputMessage');
+    $($inputMessage).attr('id', 'input_' + tar);
     
     $inputMessage.unbind('keypress');
     $inputMessage.on("keypress", function (e) {            
       target = $(this).data('target');
-      adsId = aId;
       if (e.keyCode == 13) {
         if (username) {
           sendMessage();
@@ -216,7 +200,6 @@ $(function() {
     $inputMessage.unbind('input');
     $inputMessage.on('input', function() {
       target = $(this).data('target');
-      adsId = $(this).data('ads-id');
       updateTyping();
     });
 
@@ -224,33 +207,30 @@ $(function() {
     $inputMessage.unbind('click');
     $inputMessage.click(function () {
       target = $(this).data('target');
-      adsId = $(this).data('ads-id');
-      $('#input_'+target + '_' + aId).focus();
+      $('#input_'+target).focus();
     });
 
-    $('#'+tar + '_' + aId).find('.btn.btn-chat').unbind('click');
-    $('#'+tar + '_' + aId).find('.btn.btn-chat').click(function() {
+    $('#'+tar).find('.btn.btn-chat').unbind('click');
+    $('#'+tar).find('.btn.btn-chat').click(function() {
       target = $(this).data('target');
-      adsId = $(this).data('ads-id');
       sendMessage();
       socket.emit('stop typing');
       typing = false;
     })
 
-    $('#'+tar + '_' + aId).unbind('click');
-    $('#'+tar + '_' + aId).click(function() {
+    $('#'+tar).unbind('click');
+    $('#'+tar).click(function() {
       $('.chatbox').find('.panel-heading.top-bar').css('background-color', '#666');
       $(this).find('.panel-heading.top-bar').css('background-color', '#3d8fa5');
       decreaseNotify(tar);
 
-      updateSeenMessage(username, tar, aId);
+      updateSeenMessage(username, tar);
     });
 
     $('a.load_more_message').unbind('click');
     $('a.load_more_message').click(function() {
       var target = $(this).data('target');
-      var adsId = $(this).data('ads-id');
-      $messages = $('#' + target + '_' + adsId).find('.msg_container_base');
+      $messages = $('#' + target).find('.msg_container_base');
       checkingThenLoadMoreMessage($messages);
     })
 
@@ -292,13 +272,12 @@ $(function() {
     $('.row.sideBar-body[data-target='+target+']').attr('data-blocked', blocked);
   }
 
-  function updateSeenMessage(username, tar, adsId) {
+  function updateSeenMessage(username, tar) {
     //username: sender
     //target: receiver
     socket.emit('seen message', {
       username: target,
-      target: username,
-      adsId: adsId,
+      target: username
     })
   }
 
@@ -338,9 +317,9 @@ $(function() {
     }
 
     if (data.typing) {
-      $spinner = $('#' + target + '_' + adsId).find('.msg_container_base .spinner');
+      $spinner = $('#' + target).find('.msg_container_base .spinner');
       $spinner.removeClass('hide');
-      $messages = $($('#' + target + '_' + adsId).find('.msg_container_base'));
+      $messages = $($('#' + target).find('.msg_container_base'));
       $messages.append($spinner);
       $messages[0].scrollTop = $messages[0].scrollHeight;
     } else {
@@ -355,17 +334,17 @@ $(function() {
     })
   }
 
-  function addSeenMessage(target, adsId, time) {
-    if ($('#' + target + '_' + adsId).find('.row.msg_container.msg_seen').length > 0) {
-      var messageDiv = $('#' + target + '_' + adsId).find('.row.msg_container.msg_seen');
-      $('#' + target + '_' + adsId).find('.msg_container_base').append(messageDiv);
+  function addSeenMessage(target, time) {
+    if ($('#' + target).find('.row.msg_container.msg_seen').length > 0) {
+      var messageDiv = $('#' + target).find('.row.msg_container.msg_seen');
+      $('#' + target).find('.msg_container_base').append(messageDiv);
       $(messageDiv).find("time.timeago").attr('datetime', timeAgo(time));
       $(messageDiv).find("time.timeago").attr('timeago', '');
       $("time.timeago").timeago();
       return;
     }
     var $messageDiv = $('<div class="row msg_container base_sent msg_seen"/>').append('seen&nbsp;-&nbsp;<time class="timeago" datetime="'+timeAgo(time)+'"></time>');
-    $messages = $($('#' + target + '_' + adsId).find('.msg_container_base'));
+    $messages = $($('#' + target).find('.msg_container_base'));
     $messages.append($messageDiv);
     $messageDiv.attr("style", "");
     if ($messages.length > 0) {
@@ -414,7 +393,7 @@ $(function() {
       $el.hide().fadeIn(FADE_TIME);
     }
 
-    $messages = $($('#' + target + '_' + adsId).find('.msg_container_base'));
+    $messages = $($('#' + target).find('.msg_container_base'));
     if (options.prepend) {
       $messages.prepend($el);
     } else {
@@ -495,16 +474,16 @@ $(function() {
 
     var notification = data.notification || '';
     if (notification) {
-      for(target in notification) {
-        if (notification.hasOwnProperty(target)) {
-          listAds = notification[target];
-          for(ads in listAds) {
-            for(i = 0; i < listAds[ads]; i++) {
-              increaseNotify('chatbox_' + target);
-            }
-          }
-        }
-      }
+      // for(target in notification) {
+      //   if (notification.hasOwnProperty(target)) {
+      //     listAds = notification[target];
+      //     for(ads in listAds) {
+      //       for(i = 0; i < listAds[ads]; i++) {
+      //         increaseNotify('chatbox_' + target);
+      //       }
+      //     }
+      //   }
+      // }
 
       $('.chatbox.row.chat-window:not([data-chatbox-template])').remove();
       var listUnseenMessage = data.listUnseenMessage || [];
@@ -512,8 +491,6 @@ $(function() {
         if (userId == message.contactId) {
           onReceiveMessage({
             'sender': 'chatbox_' + message.userId,
-            'adsId': message.adsId,
-            'adsTitle': message.adsTitle,
             'displayName': message.displayName,
             'message': message.message,
             'idMessage': message.idMessage,
@@ -522,8 +499,6 @@ $(function() {
         } else {
           onAddMessage({
             'sender': 'chatbox_' + message.contactId,
-            'adsId': message.adsId,
-            'adsTitle': message.adsTitle,
             'message': message.message,
             'idMessage': message.idMessage,
           })
@@ -542,9 +517,7 @@ $(function() {
 
   var onReceiveMessage = function(data, options) {
     target = data.sender;
-    adsId = data.adsId;
-    adsTitle = data.adsTitle;
-    openChatBox(target, adsId, data.displayName);
+    openChatBox(target, data.displayName);
     addChatMessage(data, options);
   }
 
@@ -554,8 +527,6 @@ $(function() {
       return;
     }
     target = data.sender;
-    adsId = data.adsId;
-    adsTitle = data.adsTitle;
     addChatMessage({
       username: username,
       message: data.message,
@@ -569,30 +540,26 @@ $(function() {
     }
     ele.attr('data-loading-more', 1);
     var target = ele.data('target');
-    var adsId = ele.data('ads-id');
     var lastId = ele.find('.row.msg_container:first').data('id');
-    loadMoreMessage(target, adsId, lastId);
+    loadMoreMessage(target, lastId);
   }
 
-  var loadMoreMessage = function(tar, aId, lastId) {
+  var loadMoreMessage = function(tar, lastId) {
     socket.emit('load_more_message', {
       userId: userId,
       target: tar,
-      adsId: aId,
       lastMessageId: lastId,
     })
   }
 
   socket.on(username+'_load_more_message', function(data) {
     // console.log(data);
-    $loadMoreElement = $('#chatbox_' + data.target + '_' + data.adsId).find('.msg_container_base').find('a.load_more_message');
+    $loadMoreElement = $('#chatbox_' + data.target).find('.msg_container_base').find('a.load_more_message');
     var listMessage = data.listMessage || [];
     listMessage.forEach(function(message, idx) {
       if (userId == message.contactId) {
         onReceiveMessage({
           'sender': 'chatbox_' + data.target,
-          'adsId': data.adsId,
-          'adsTitle': data.adsTitle,
           'displayName': '',
           'message': message.message,
           'idMessage': message.idMessage,
@@ -603,8 +570,6 @@ $(function() {
       } else {
         onAddMessage({
           'sender': 'chatbox_' + data.target,
-          'adsId': data.adsId,
-          'adsTitle': '',
           'message': message.message,
           'idMessage': message.idMessage,
         }, {
@@ -616,7 +581,7 @@ $(function() {
     if (listMessage.length == 0) {
       $loadMoreElement.remove();
     } else {
-      $('#chatbox_' + data.target + '_' + data.adsId).find('.msg_container_base').prepend($loadMoreElement);
+      $('#chatbox_' + data.target).find('.msg_container_base').prepend($loadMoreElement);
     }
   });
 
@@ -625,32 +590,32 @@ $(function() {
   });
 
   socket.on(username+'_seen_message', function (data) {
-    addSeenMessage(data.sender, data.adsId, data.time);
+    addSeenMessage(data.sender, data.time);
   })
 
   socket.on(username+'_list_contact', function (data) {
     // console.log(data);
     var listContact = data.listContact || [];
-    $('#chat-box').find('.row.sideBar').html('');
-    $('.dropdown .dropdown-chat-box .row.sideBar').html('');
-    for (idx in listContact) {
-      var listAds = listContact[idx];
-      for (i in listAds) {
-        var row = listAds[i];
+    // $('#chat-box').find('.row.sideBar').html('');
+    // $('.dropdown .dropdown-chat-box .row.sideBar').html('');
+    // for (idx in listContact) {
+    //   var listAds = listContact[idx];
+    //   for (i in listAds) {
+    //     var row = listAds[i];
 
-        //add to dashboard
-        addContact('chatbox_'+row.contactId, row.adsId, row.adsTitle, row.displayName, '',
-          $('#chat-box').find('.row.sideBar'), row.blocked, null, row.avatar);
+    //     //add to dashboard
+        // addContact('chatbox_'+row.contactId, row.displayName, '',
+        //   $('#chat-box').find('.row.sideBar'), row.blocked, null, row.avatar);
 
-        //add to dropdown chat notification nav bar
-        addContact('chatbox_'+row.contactId, row.adsId, row.adsTitle, row.displayName, row.message,
-          $('.dropdown .dropdown-chat-box .row.sideBar'), row.blocked, row.time, row.avatar);
+    //     //add to dropdown chat notification nav bar
+    //     addContact('chatbox_'+row.contactId, row.displayName, row.message,
+    //       $('.dropdown .dropdown-chat-box .row.sideBar'), row.blocked, row.time, row.avatar);
 
-        if (row.blocked) {
-          listBlocked['chatbox_'+row.blocked] = true;
-        }
-      }
-    }
+    //     if (row.blocked) {
+    //       listBlocked['chatbox_'+row.blocked] = true;
+    //     }
+    //   }
+    // }
 
     $("time.timeago").timeago();
   })
@@ -707,7 +672,18 @@ $(function() {
     }, 5000);
   }
 
-
+  socket.on('list-user-online', function(data) {
+    $('#chat-box').find('.row.sideBar').html('');
+    for(var key in data.users) {
+      if (key != username) {
+        if (data.users.hasOwnProperty(key)) {
+          var val = data.users[key];
+          addContact('chatbox_'+val.userId, val.displayName, '',
+            $('#chat-box').find('.row.sideBar'), false, null, val.avatar);
+        }
+      }
+    }
+  });
   
 
   socket.on("gotToken", function(message){
@@ -724,9 +700,8 @@ var initChatBox = function() {
   $('.chatbox-close').unbind('click');
   $('.chatbox-close').on('click', function() {
     var target = $(this).data('target');
-    var adsId = $(this).data('ads-id');
 
-    $('#' + target + "_" + adsId).remove();
+    $('#' + target).remove();
 
     if ($('#chat-box').width() + 350 < $('body').width()) {
       $('#chat-box').find('.chatbox.row.chat-window.hide:not(.show):not([data-chatbox-template]):last').removeClass('hide').addClass('show');

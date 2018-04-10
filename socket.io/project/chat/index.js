@@ -30,6 +30,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Chatroom
 
 var numUsers = 0;
+var listUsers = {};
 
 io.on('connection', function (socket) {
   var addedUser = false;
@@ -42,8 +43,6 @@ io.on('connection', function (socket) {
     var target = data.target;
     var message = data.message;
     var displayName = data.displayName;
-    var adsTitle = data.adsTitle;
-    var adsId = data.adsId;
     
     var contactId = parseInt(target.replace("chatbox_", ""));
     var userId = parseInt(socket.username.replace("chatbox_", ""));
@@ -52,7 +51,7 @@ io.on('connection', function (socket) {
       return
     }
 
-    chatManager.insertNewMessage(userId, adsId, contactId, message, adsTitle, function(idMessage) {
+    chatManager.insertNewMessage(userId, contactId, message, function(idMessage) {
       if (idMessage > 0) {
         // we tell the client to execute 'new message'
         socket.broadcast.emit(target, {
@@ -60,8 +59,6 @@ io.on('connection', function (socket) {
           message: message,
           sender: socket.username,
           displayName: displayName,
-          adsId: adsId,
-          adsTitle: adsTitle,
           idMessage: idMessage,
         });
 
@@ -69,8 +66,6 @@ io.on('connection', function (socket) {
           sender: target,
           username: socket.username,
           message: message,
-          adsId: adsId,
-          adsTitle: adsTitle,
           idMessage: idMessage,
         });
       } else {
@@ -96,17 +91,15 @@ io.on('connection', function (socket) {
     //username: sender
     //target: receiver
     var userId = parseInt(data.username.replace("chatbox_", ""));
-    var adsId = data.adsId;
     var contactId = parseInt(data.target.replace("chatbox_", ""));
     var timeStamp = Math.floor(Date.now() / 1000);
 
-    chatManager.seenMessage(userId, adsId, contactId, timeStamp, function() {
+    chatManager.seenMessage(userId, contactId, timeStamp, function() {
       //seen message successfully
       // console.log('seen message successfully');
       socket.broadcast.emit(data.username+'_seen_message', {
         sender: data.target,
         username: socket.username,
-        adsId: data.adsId,
         time: timeStamp,
       });
     });
@@ -116,15 +109,27 @@ io.on('connection', function (socket) {
   socket.on('add user', function (username) {
     var authen = socket.session.get("authen");
 
+    if (!authen) {
+      return
+    }
+
+    listUsers[username] = {
+      'username': 'chatbox_'+authen.id,
+      'userId': authen.id,
+      'displayName': authen.first_name,
+      'avatar': authen.avatar,
+    };
+    socket.emit('list-user-online', {
+      'users': listUsers,
+    });
+
     console.log('add user ' + username);
     if (addedUser) return;
 
     var userId = parseInt(username.replace("chatbox_", ""));
     socket.userId = userId;
 
-    if (authen.id != userId) {
-      return
-    }
+    
 
     // we store the username in the socket session for this client
     socket.username = username;
@@ -148,11 +153,9 @@ io.on('connection', function (socket) {
   socket.on('load_more_message', function(data) {
     var contactId = parseInt(data.target.replace("chatbox_", ""));
     var lastMessageId = data.lastMessageId || 0;
-    chatManager.getHistoryMessage(data.userId, contactId, data.adsId, lastMessageId, function(listMessage) {
+    chatManager.getHistoryMessage(data.userId, contactId, lastMessageId, function(listMessage) {
       socket.emit(socket.username+'_load_more_message', {
         target: contactId,
-        adsId: data.adsId,
-        adsTitle: '',
         listMessage: listMessage,
       });
     });

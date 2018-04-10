@@ -29,10 +29,10 @@ class ChatManager {
   constructor() {
     this.db = new Database(config.db);
   }
-  insertNewMessage(userId, adsId, contactId, message, adsTitle, callback) {
-    var query = 'INSERT INTO chatbox_contact(user_id,ads_id,contact_id,message,ads_title) ' +
-                    ' VALUES(?,?,?,?,?)';
-    var args = [userId, adsId, contactId, message, adsTitle];
+  insertNewMessage(userId, contactId, message, callback) {
+    var query = 'INSERT INTO chatbox_contact(user_id,contact_id,message) ' +
+                    ' VALUES(?,?,?)';
+    var args = [userId, contactId, message];
     // console.log(args);
     var queryBlock = 'SELECT * FROM chatbox_block WHERE (user_id=? AND contact_id=?) OR (user_id=? AND contact_id=?)';
     var argsBlock = [contactId, userId, userId, contactId];
@@ -53,9 +53,9 @@ class ChatManager {
     });
     
   }
-  seenMessage(userId, adsId, contactId, timeStamp, callback) {
-    var query = 'UPDATE chatbox_contact SET seen_at=FROM_UNIXTIME(?) WHERE user_id=? AND ads_id=? AND contact_id=? AND seen_at IS NULL';
-    var args = [timeStamp, userId, adsId, contactId];
+  seenMessage(userId, contactId, timeStamp, callback) {
+    var query = 'UPDATE chatbox_contact SET seen_at=FROM_UNIXTIME(?) WHERE user_id=? AND contact_id=? AND seen_at IS NULL';
+    var args = [timeStamp, userId, contactId];
     // console.log(args);
     this.db.query(query, args).then(rows => {
       if (rows.affectedRows > 0) {
@@ -63,9 +63,9 @@ class ChatManager {
       }
     });
   }
-  getHistory(userId, adsId, contactId, callback) {
-    var query = 'SELECT * FROM chatbox_contact WHERE user_id=? AND ads_id=? AND contact_id=? ORDER BY create_at DESC LIMIT 10';
-    var args = [userId, adsId, contactId];
+  getHistory(userId, contactId, callback) {
+    var query = 'SELECT * FROM chatbox_contact WHERE user_id=? AND contact_id=? ORDER BY create_at DESC LIMIT 10';
+    var args = [userId, contactId];
     // console.log(args);
     this.db.query(query, args).then(rows => {
       // console.log(rows);
@@ -76,7 +76,7 @@ class ChatManager {
   }
   getUnseenMessage(receiverId, callback) {
     //query contact_id = userId: receiver message
-    var query = 'SELECT count(id) as count,user_id,ads_id FROM chatbox_contact WHERE contact_id=? AND seen_at IS NULL GROUP BY user_id, ads_id';
+    var query = 'SELECT count(id) as count,user_id FROM chatbox_contact WHERE contact_id=? AND seen_at IS NULL GROUP BY user_id';
     var args = [receiverId];
     // console.log('getUnseenMessage');
     var db = this.db;
@@ -86,13 +86,13 @@ class ChatManager {
     this.db.query(query, args).then(rows => {
       if (rows && rows.length > 0) {
         
-        var query = 'SELECT chatbox_contact.*, users.first_name,users.username FROM chatbox_contact LEFT JOIN users ON chatbox_contact.user_id=users.id WHERE ads_id=? AND ((contact_id=? AND user_id=?) OR (contact_id=? AND user_id=?)) ORDER BY id DESC LIMIT 10';
+        var query = 'SELECT chatbox_contact.*, users.first_name,users.username FROM chatbox_contact LEFT JOIN users ON chatbox_contact.user_id=users.id WHERE ((contact_id=? AND user_id=?) OR (contact_id=? AND user_id=?)) ORDER BY id DESC LIMIT 10';
         var listPromise = [];
         rows.forEach(function(row, idx) {
           notification[row.user_id] = {};
-          notification[row.user_id][row.ads_id] = row.count;
+          notification[row.user_id] = row.count;
 
-          var args = [row.ads_id,row.user_id,receiverId,receiverId,row.user_id];
+          var args = [row.user_id,receiverId,receiverId,row.user_id];
           // console.log(args);
           listPromise.push(db.query(query, args));
         });
@@ -103,8 +103,6 @@ class ChatManager {
             rows.forEach(function(row, idx) {
               listUnseenMessage.push({
                 'userId': row.user_id,
-                'adsId': row.ads_id,
-                'adsTitle': row.ads_title,
                 'displayName': row.first_name,
                 'contactId': row.contact_id,
                 'message': row.message,
@@ -134,12 +132,10 @@ class ChatManager {
             listContact[row.contact_id] = {};
           }
 
-          if (!listContact[row.contact_id][row.ads_id]) {
-            listContact[row.contact_id][row.ads_id] = {
+          if (!listContact[row.contact_id]) {
+            listContact[row.contact_id] = {
               'userId': row.user_id,
               'contactId': row.contact_id,
-              'adsId': row.ads_id,
-              'adsTitle': row.ads_title,
               'displayName': row.first_name,
               'message': row.message,
               'idMessage': row.id,
@@ -148,11 +144,10 @@ class ChatManager {
               'avatar': row.avatar,
             }
           }
-          // console.log(row.id + ' | ' + listContact[row.contact_id][row.ads_id].idMessage)
-          if (row.id > listContact[row.contact_id][row.ads_id].idMessage) {
-            listContact[row.contact_id][row.ads_id].idMessage = row.id;
-            listContact[row.contact_id][row.ads_id].message = row.message;
-            listContact[row.contact_id][row.ads_id].time = row.time;
+          if (row.id > listContact[row.contact_id].idMessage) {
+            listContact[row.contact_id].idMessage = row.id;
+            listContact[row.contact_id].message = row.message;
+            listContact[row.contact_id].time = row.time;
           }
         }
       });
@@ -163,30 +158,30 @@ class ChatManager {
     var listPromise = [];
     var db = this.db;
 
-    var query = 'SELECT chat.user_id, chat.contact_id, chat.ads_id, \
+    var query = 'SELECT chat.user_id, chat.contact_id, \
       users.username, users.avatar, users.first_name, \
-      (SELECT message FROM chatbox_contact WHERE chatbox_contact.user_id=? AND chatbox_contact.contact_id=chat.contact_id AND chatbox_contact.ads_id=chat.ads_id ORDER BY id DESC LIMIT 1) as message, \
-      (SELECT UNIX_TIMESTAMP(create_at) FROM chatbox_contact WHERE chatbox_contact.user_id=? AND chatbox_contact.contact_id=chat.contact_id AND chatbox_contact.ads_id=chat.ads_id ORDER BY id DESC LIMIT 1) as time, \
-      (SELECT id FROM chatbox_contact WHERE chatbox_contact.user_id=? AND chatbox_contact.contact_id=chat.contact_id AND chatbox_contact.ads_id=chat.ads_id ORDER BY id DESC LIMIT 1) as id, \
+      (SELECT message FROM chatbox_contact WHERE chatbox_contact.user_id=? AND chatbox_contact.contact_id=chat.contact_id ORDER BY id DESC LIMIT 1) as message, \
+      (SELECT UNIX_TIMESTAMP(create_at) FROM chatbox_contact WHERE chatbox_contact.user_id=? AND chatbox_contact.contact_id=chat.contact_id ORDER BY id DESC LIMIT 1) as time, \
+      (SELECT id FROM chatbox_contact WHERE chatbox_contact.user_id=? AND chatbox_contact.contact_id=chat.contact_id ORDER BY id DESC LIMIT 1) as id, \
       (SELECT contact_id FROM chatbox_block WHERE user_id=? AND chatbox_block.contact_id=chat.contact_id) as blocked \
       FROM chatbox_contact as chat \
       LEFT JOIN users ON chat.contact_id=users.id \
       WHERE chat.user_id=? \
-      GROUP BY chat.user_id,chat.contact_id,chat.ads_id';
+      GROUP BY chat.user_id,chat.contact_id';
     var args = [userId,userId,userId,userId,userId];
     //query contact when userId is the one who send message
     listPromise.push(this.db.query(query, args));
 
-    query = 'SELECT chat.user_id as contact_id, chat.contact_id as user_id, chat.ads_id, \
+    query = 'SELECT chat.user_id as contact_id, chat.contact_id as user_id, \
         users.username, users.avatar, users.first_name, \
-        (SELECT message FROM chatbox_contact WHERE chatbox_contact.user_id=chat.user_id AND chatbox_contact.contact_id=? AND chatbox_contact.ads_id=chat.ads_id ORDER BY id DESC LIMIT 1) as message, \
-        (SELECT UNIX_TIMESTAMP(create_at) FROM chatbox_contact WHERE chatbox_contact.user_id=chat.user_id AND chatbox_contact.contact_id=? AND chatbox_contact.ads_id=chat.ads_id ORDER BY id DESC LIMIT 1) as time, \
-        (SELECT id FROM chatbox_contact WHERE chatbox_contact.user_id=chat.user_id AND chatbox_contact.contact_id=? AND chatbox_contact.ads_id=chat.ads_id ORDER BY id DESC LIMIT 1) as id, \
+        (SELECT message FROM chatbox_contact WHERE chatbox_contact.user_id=chat.user_id AND chatbox_contact.contact_id=? ORDER BY id DESC LIMIT 1) as message, \
+        (SELECT UNIX_TIMESTAMP(create_at) FROM chatbox_contact WHERE chatbox_contact.user_id=chat.user_id AND chatbox_contact.contact_id=? ORDER BY id DESC LIMIT 1) as time, \
+        (SELECT id FROM chatbox_contact WHERE chatbox_contact.user_id=chat.user_id AND chatbox_contact.contact_id=? ORDER BY id DESC LIMIT 1) as id, \
         (SELECT contact_id FROM chatbox_block WHERE user_id=? AND chatbox_block.contact_id=chat.user_id) as blocked \
         FROM chatbox_contact as chat \
         LEFT JOIN users ON chat.user_id=users.id \
         WHERE chat.contact_id=? \
-        GROUP BY chat.user_id,chat.contact_id,chat.ads_id';
+        GROUP BY chat.user_id,chat.contact_id';
     //query contact when userId is the one who receive message
     listPromise.push(this.db.query(query, args));
     
@@ -201,14 +196,14 @@ class ChatManager {
     });
   }
 
-  getHistoryMessage(userId, contactId, adsId, lastMessageId, callback) {
+  getHistoryMessage(userId, contactId, lastMessageId, callback) {
     // console.log('get history message');
-    var query = 'SELECT chatbox_contact.* FROM chatbox_contact WHERE ads_id=? AND ((contact_id=? AND user_id=?) OR (contact_id=? AND user_id=?)) ORDER BY id DESC LIMIT 10';
-    var args = [adsId, contactId, userId, userId, contactId, lastMessageId];
+    var query = 'SELECT chatbox_contact.* FROM chatbox_contact WHERE ((contact_id=? AND user_id=?) OR (contact_id=? AND user_id=?)) ORDER BY id DESC LIMIT 10';
+    var args = [contactId, userId, userId, contactId, lastMessageId];
     if (lastMessageId > 0) {
       // console.log('lastMessageId: ' + lastMessageId);
-      query = 'SELECT chatbox_contact.* FROM chatbox_contact WHERE ads_id=? AND ((contact_id=? AND user_id=?) OR (contact_id=? AND user_id=?)) AND id < ? ORDER BY id DESC LIMIT 10';
-      args = [adsId, contactId, userId, userId, contactId, lastMessageId];
+      query = 'SELECT chatbox_contact.* FROM chatbox_contact WHERE ((contact_id=? AND user_id=?) OR (contact_id=? AND user_id=?)) AND id < ? ORDER BY id DESC LIMIT 10';
+      args = [contactId, userId, userId, contactId, lastMessageId];
     }
     
     this.db.query(query, args).then(rows => {
