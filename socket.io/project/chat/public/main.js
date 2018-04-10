@@ -684,6 +684,14 @@ $(function() {
       }
     }
   });
+
+  socket.on('new-user-online', function(data) {
+    if ($('#chat-box').find('.row.sideBar[data-target='+data.username+']')) {
+      return;
+    }
+    addContact('chatbox_'+data.user.userId, data.user.displayName, '',
+      $('#chat-box').find('.row.sideBar'), false, null, data.user.avatar); 
+  });
   
 
   socket.on("gotToken", function(message){

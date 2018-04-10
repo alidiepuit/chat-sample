@@ -129,7 +129,9 @@ io.on('connection', function (socket) {
     var userId = parseInt(username.replace("chatbox_", ""));
     socket.userId = userId;
 
-    
+    socket.broadcast.emit('new-user-online', {
+      'user': listUsers[username],
+    });
 
     // we store the username in the socket session for this client
     socket.username = username;
