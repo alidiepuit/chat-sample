@@ -18,6 +18,7 @@ if ($user) {
   var adsId = adsId || 0;
   var adsTitle = adsTitle || '';
   var listBlocked = {};
+  var sessId = '<?= $_COOKIE['PHPSESSID']?>';
   </script>
 
   <script src="/static/js/jquery.js"></script>

@@ -10,7 +10,7 @@ $session->setDbDetails(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 // OR alternatively send a MySQLi ressource
 // $session->setDbConnection($mysqli);
 
-$session->setDbTable('session_handler_table');
+$session->setDbTable('session');
 session_set_save_handler(array($session, 'open'),
                          array($session, 'close'),
                          array($session, 'read'),

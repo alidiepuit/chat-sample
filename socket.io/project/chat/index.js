@@ -1,10 +1,16 @@
 // Setup basic express server
-var express     = require('express'),
-    app         = express(),
-    path        = require('path'),
-    server      = require('http').createServer(app),
-    chatManager = require('./ChatManager.js'),
-    io          = require('../..')(server);
+var express       = require('express'),
+    app           = express(),
+    path          = require('path'),
+    server        = require('http').createServer(app),
+    chatManager   = require('./ChatManager.js'),
+    io            = require('../..')(server),
+    socketSession = require("socket.io-mysql-session"),
+    mysql         = require('mysql'),
+    config        = require('./config.js'),
+    Logger        = require("filelogger"),                  
+    logger        = new Logger("error", "info", "my.log"),
+    db            = mysql.createConnection(config.db);
 
 var port = process.env.PORT || 3000;
 
@@ -12,7 +18,11 @@ server.listen(port, function () {
   console.log('Server listening at port %d', port);
 });
 
-
+io.use(new socketSession({
+    db: db,
+    logger: logger,       
+    expiration: 3600
+}));
 
 // Routing
 app.use(express.static(path.join(__dirname, 'public')));
@@ -26,6 +36,9 @@ io.on('connection', function (socket) {
 
   // when the client emits 'new message', this listens and executes
   socket.on('new message', function (data) {
+    var authen = socket.session.get("authen");
+    // console.log(authen);
+
     var target = data.target;
     var message = data.message;
     var displayName = data.displayName;
@@ -34,6 +47,10 @@ io.on('connection', function (socket) {
     
     var contactId = parseInt(target.replace("chatbox_", ""));
     var userId = parseInt(socket.username.replace("chatbox_", ""));
+
+    if (authen.id != userId) {
+      return
+    }
 
     chatManager.insertNewMessage(userId, adsId, contactId, message, adsTitle, function(idMessage) {
       if (idMessage > 0) {
@@ -97,13 +114,17 @@ io.on('connection', function (socket) {
 
   // when the client emits 'add user', this listens and executes
   socket.on('add user', function (username) {
-    console.log('add user ' + username);
+    var authen = socket.session.get("authen");
 
+    console.log('add user ' + username);
     if (addedUser) return;
 
     var userId = parseInt(username.replace("chatbox_", ""));
     socket.userId = userId;
 
+    if (authen.id != userId) {
+      return
+    }
 
     // we store the username in the socket session for this client
     socket.username = username;

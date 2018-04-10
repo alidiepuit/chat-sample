@@ -35,6 +35,10 @@ $(function() {
                 timeout: 3000
             });
 
+  var token = sessId || "";
+  
+  socket.emit("getToken", {token: token});
+
   if (username) {
     socket.emit('add user', username);
   }
@@ -702,6 +706,17 @@ $(function() {
       })
     }, 5000);
   }
+
+
+  
+
+  socket.on("gotToken", function(message){
+      console.log(message);
+      if(message.token != "") {
+          localStorage.setItem("token", message.token);
+          token = message.token;
+      }
+  });
 
 });
 

@@ -8,8 +8,10 @@
   "license": "BSD",
   "dependencies": {
     "express": "4.13.4",
+    "filelogger": "^1.0.3",
     "mysql": "^2.15.0",
-    "pm2": "^2.10.1"
+    "pm2": "^2.10.1",
+    "socket.io-mysql-session": "1.0.9"
   },
   "scripts": {
     "start": "node index.js"

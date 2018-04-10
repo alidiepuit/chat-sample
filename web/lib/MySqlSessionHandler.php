@@ -63,7 +63,7 @@ class MySqlSessionHandler{
     {
         //delete old session handlers
         $limit = time() - (3600 * 24);
-        $sql = sprintf("DELETE FROM %s WHERE timestamp < %s", $this->dbTable, $limit);
+        $sql = sprintf("DELETE FROM %s WHERE expires < %s", $this->dbTable, $limit);
         return $this->dbConnection->query($sql);
     }
 
@@ -83,11 +83,12 @@ class MySqlSessionHandler{
      */
     public function read($id)
     {
-        $sql = sprintf("SELECT data FROM %s WHERE id = '%s'", $this->dbTable, $this->dbConnection->escape_string($id));
+        $sql = sprintf("SELECT data FROM %s WHERE sessionId = '%s'", $this->dbTable, $this->dbConnection->escape_string($id));
         if ($result = $this->dbConnection->query($sql)) {
             if ($result->num_rows && $result->num_rows > 0) {
                 $record = $result->fetch_assoc();
-                return $record['data'];
+                $arr = json_decode($record['data'], true);
+                return $this->serializeSession($arr);
             } else {
                 return false;
             }
@@ -105,13 +106,63 @@ class MySqlSessionHandler{
      */
     public function write($id, $data)
     {
-
+        $unserializeData = $this->unserializeSession($data);
         $sql = sprintf("REPLACE INTO %s VALUES('%s', '%s', '%s')",
                        $this->dbTable,
                        $this->dbConnection->escape_string($id),
-                       $this->dbConnection->escape_string($data),
-                       time());
+                       time() + 3600,
+                       json_encode($unserializeData));
+
         return $this->dbConnection->query($sql);
+    }
+
+    /**
+     * @see http://php.net/manual/en/function.session-decode.php#108037
+     * @param array $session_data
+     * @throws Exception
+     * @return multitype:mixed
+     */
+    private function unserializeSession($session_data)
+    {
+        $return_data = array();
+        $offset = 0;
+        while ($offset < strlen($session_data)) {
+            if (!strstr(substr($session_data, $offset), "|")) {
+                throw new Exception("invalid data, remaining: " . substr($session_data, $offset));
+            }
+            $pos = strpos($session_data, "|", $offset);
+            $num = $pos - $offset;
+            $varname = substr($session_data, $offset, $num);
+            $offset += $num + 1;
+            $data = unserialize(substr($session_data, $offset));
+            $return_data[$varname] = $data;
+            $offset += strlen(serialize($data));
+        }
+        return $return_data;
+    }
+
+    /**
+     * @see http://php.net/manual/en/function.session-encode.php#76425
+     * @param array $array
+     * @return string
+     */
+    private function serializeSession(array $array)
+    {
+        $raw = '';
+        $line = 0;
+        $keys = array_keys($array);
+        foreach ($keys as $key) {
+            $value = $array[$key];
+            $line++;
+            $raw .= $key . '|';
+            if (is_array($value) && isset($value['huge_recursion_blocker_we_hope'])) {
+                $raw .= 'R:' . $value['huge_recursion_blocker_we_hope'] . ';';
+            } else {
+                $raw .= serialize($value);
+            }
+            $array[$key] = Array('huge_recursion_blocker_we_hope' => $line);
+        }
+        return $raw;
     }
 
     /**
@@ -121,7 +172,7 @@ class MySqlSessionHandler{
      */
     public function destroy($id)
     {
-        $sql = sprintf("DELETE FROM %s WHERE `id` = '%s'", $this->dbTable, $this->dbConnection->escape_string($id));
+        $sql = sprintf("DELETE FROM %s WHERE `sessionId` = '%s'", $this->dbTable, $this->dbConnection->escape_string($id));
         return $this->dbConnection->query($sql);
     }
 
@@ -137,7 +188,7 @@ class MySqlSessionHandler{
      */
     public function gc($max)
     {
-        $sql = sprintf("DELETE FROM %s WHERE `timestamp` < '%s'", $this->dbTable, time() - intval($max));
+        $sql = sprintf("DELETE FROM %s WHERE `expires` < '%s'", $this->dbTable, time() - intval($max));
         return $this->dbConnection->query($sql);
     }
 }
