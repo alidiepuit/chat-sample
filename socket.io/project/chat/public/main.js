@@ -40,7 +40,10 @@ $(function() {
   socket.emit("getToken", {token: token});
 
   if (username) {
-    socket.emit('add user', username);
+    socket.emit('add user', {
+          'username': username,
+          'group': 0,
+        });
   }
 
   function addParticipantsMessage (data) {
@@ -656,7 +659,10 @@ $(function() {
   socket.on('reconnect', function () {
     // log('you have been reconnected');
     if (username) {
-      socket.emit('add user', username);
+      socket.emit('add user', {
+          'username': username,
+          'group': groupId,
+        });
     }
   });
 
@@ -686,7 +692,7 @@ $(function() {
   });
 
   socket.on('new-user-online', function(data) {
-    if ($('#chat-box').find('.row.sideBar[data-target='+data.username+']')) {
+    if ($('#chat-box').find('.row.sideBar[data-target='+data.user.username+']')) {
       return;
     }
     addContact('chatbox_'+data.user.userId, data.user.displayName, '',

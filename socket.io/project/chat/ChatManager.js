@@ -30,6 +30,8 @@ class ChatManager {
     this.db = new Database(config.db);
   }
   insertNewMessage(userId, contactId, message, callback) {
+    console.log('insertNewMessage');
+
     var query = 'INSERT INTO chatbox_contact(user_id,contact_id,message) ' +
                     ' VALUES(?,?,?)';
     var args = [userId, contactId, message];
@@ -53,10 +55,25 @@ class ChatManager {
     });
     
   }
+  insertMessageChatGroup(userId, groupId, message, callback) {
+    console.log('insertMessageChatGroup');
+    
+    var table = 'group'+groupId+ '_chat';
+    var query = 'INSERT INTO ' + table + '(user_id,message) ' +
+                    ' VALUES(?,?)';
+    var args = [userId, message];
+    // console.log(args);
+
+    this.db.query(query, args).then(rows => {
+      callback(rows.insertId);
+    });
+  }
   seenMessage(userId, contactId, timeStamp, callback) {
+    console.log('seenMessage');
+    
     var query = 'UPDATE chatbox_contact SET seen_at=FROM_UNIXTIME(?) WHERE user_id=? AND contact_id=? AND seen_at IS NULL';
     var args = [timeStamp, userId, contactId];
-    // console.log(args);
+    console.log(args);
     this.db.query(query, args).then(rows => {
       if (rows.affectedRows > 0) {
         callback();
@@ -64,6 +81,8 @@ class ChatManager {
     });
   }
   getHistory(userId, contactId, callback) {
+    console.log('getHistory');
+    
     var query = 'SELECT * FROM chatbox_contact WHERE user_id=? AND contact_id=? ORDER BY create_at DESC LIMIT 10';
     var args = [userId, contactId];
     // console.log(args);
@@ -75,6 +94,8 @@ class ChatManager {
     });
   }
   getUnseenMessage(receiverId, callback) {
+    console.log('getUnseenMessage');
+    
     //query contact_id = userId: receiver message
     var query = 'SELECT count(id) as count,user_id FROM chatbox_contact WHERE contact_id=? AND seen_at IS NULL GROUP BY user_id';
     var args = [receiverId];
@@ -123,6 +144,8 @@ class ChatManager {
   }
 
   getListContact(userId, callback) {
+    console.log('getListContact');
+    
     // console.log('get list contact: ' + userId);
     var addContact = function(listContact, rows) {
       rows.forEach(function(row, idx) {
@@ -197,6 +220,8 @@ class ChatManager {
   }
 
   getHistoryMessage(userId, contactId, lastMessageId, callback) {
+    console.log('getHistoryMessage');
+    
     // console.log('get history message');
     var query = 'SELECT chatbox_contact.* FROM chatbox_contact WHERE ((contact_id=? AND user_id=?) OR (contact_id=? AND user_id=?)) ORDER BY id DESC LIMIT 10';
     var args = [contactId, userId, userId, contactId, lastMessageId];
@@ -222,20 +247,63 @@ class ChatManager {
     });
   }
 
+  getHistoryMessageGroup(groupId, lastMessageId, callback) {
+    console.log('getHistoryMessageGroup');
+    
+    var table = 'group' + groupId + '_chat';
+    var query = 'SELECT * FROM ' + table + ' WHERE true ORDER BY cid DESC LIMIT 10';
+    var args = [];
+
+    if (lastMessageId > 0) {
+      // console.log('lastMessageId: ' + lastMessageId);
+      query = 'SELECT * FROM ' + table + ' WHERE true AND cid < ? ORDER BY cid DESC LIMIT 10';
+      args = [lastMessageId];
+    }
+    
+    console.log(query);
+    this.db.query(query, args).then(rows => {
+      var listMessage = [];
+      if (rows && rows.length > 0) {
+        rows.forEach(function(row, idx) {
+          listMessage.push({
+            'userId': row.user_id,
+            'message': row.message,
+            'idMessage': row.cid,
+          });
+        });
+      }
+      callback(listMessage);
+    });
+  }
+
   blockContact(userId, contactId, callback) {
+    console.log('blockContact');
+    
     var query = 'INSERT INTO chatbox_block VALUES(?,?)';
     var args = [userId, contactId];
     this.db.query(query, args);
   }
 
   removeBlockContact(userId, contactId, callback) {
+    console.log('removeBlockContact');
+    
     var query = 'DELETE FROM chatbox_block WHERE user_id=? AND contact_id=?';
     var args = [userId, contactId];
     this.db.query(query, args);
   }
 
   removeMessage(userId, messageId, callback) {
+    console.log('removeMessage');
+    
     var query = 'DELETE FROM chatbox_contact WHERE user_id=? AND id=?';
+    var args = [userId, messageId];
+    this.db.query(query, args);
+  }
+
+  removeMessageGroup(userId, groupId, messageId, callback) {
+    console.log('removeMessageGroup');
+    var table = 'group' + groupId + '_chat';
+    var query = 'DELETE FROM ' + table + ' WHERE user_id=? AND cid=?';
     var args = [userId, messageId];
     this.db.query(query, args);
   }

@@ -31,6 +31,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 var numUsers = 0;
 var listUsers = {};
+var groupUsers = {};
 
 io.on('connection', function (socket) {
   var addedUser = false;
@@ -39,79 +40,126 @@ io.on('connection', function (socket) {
   socket.on('new message', function (data) {
     var authen = socket.session.get("authen");
     // console.log(authen);
+    if (!authen) {
+      return;
+    }
 
     var target = data.target;
     var message = data.message;
     var displayName = data.displayName;
     
     var contactId = parseInt(target.replace("chatbox_", ""));
-    var userId = parseInt(socket.username.replace("chatbox_", ""));
+    var userId = authen.id;
+    var groupId = data.group || '';
+  
+    if (groupId) {
+      chatManager.insertMessageChatGroup(userId, groupId, message, function(idMessage) {
+        if (idMessage > 0) {
+          // we tell the client to execute 'new message'
+          socket.broadcast.emit(target, {
+            username: socket.username,
+            message: message,
+            displayName: displayName,
+            idMessage: idMessage,
+            group: groupId,
+            sender: target,
+            userId: userId,
+          });
 
-    if (authen.id != userId) {
-      return
-    }
-
-    chatManager.insertNewMessage(userId, contactId, message, function(idMessage) {
-      if (idMessage > 0) {
-        // we tell the client to execute 'new message'
-        socket.broadcast.emit(target, {
-          username: socket.username,
-          message: message,
-          sender: socket.username,
-          displayName: displayName,
-          idMessage: idMessage,
-        });
-
-        socket.emit(socket.username+'_add_message', {
-          sender: target,
-          username: socket.username,
-          message: message,
-          idMessage: idMessage,
-        });
-      } else {
-        switch (idMessage) {
-          case 0:
-            socket.emit(socket.username+'_add_message', {
-              error: 'This contact was blocked!!!',
-            });
-            break;
-          case -1: 
-            socket.emit(socket.username+'_add_message', {
-              error: 'You were blocked!!!',
-            });
-            break;
+          socket.emit(socket.username+'_add_message', {
+            sender: target,
+            username: socket.username,
+            message: message,
+            idMessage: idMessage,
+          });
         }
-        
-      }
-    });
+      });
+    } else {
+      chatManager.insertNewMessage(userId, contactId, message, function(idMessage) {
+        if (idMessage > 0) {
+          // we tell the client to execute 'new message'
+          socket.broadcast.emit(target, {
+            username: socket.username,
+            message: message,
+            sender: socket.username,
+            displayName: displayName,
+            idMessage: idMessage,
+          });
+
+          socket.emit(socket.username+'_add_message', {
+            sender: target,
+            username: socket.username,
+            message: message,
+            idMessage: idMessage,
+          });
+        } else {
+          switch (idMessage) {
+            case 0:
+              socket.emit(socket.username+'_add_message', {
+                error: 'This contact was blocked!!!',
+              });
+              break;
+            case -1: 
+              socket.emit(socket.username+'_add_message', {
+                error: 'You were blocked!!!',
+              });
+              break;
+          }
+          
+        }
+      });
+    }
   });
 
   // when the client emits 'seen message', this listens and executes
   socket.on('seen message', function (data) {
-    //username: sender
-    //target: receiver
-    var userId = parseInt(data.username.replace("chatbox_", ""));
+    var authen = socket.session.get("authen");
+    // console.log(authen);
+    if (!authen) {
+      return;
+    }
+
+    var userId = authen.id;
     var contactId = parseInt(data.target.replace("chatbox_", ""));
     var timeStamp = Math.floor(Date.now() / 1000);
+    var groupId = data.group || '';
 
-    chatManager.seenMessage(userId, contactId, timeStamp, function() {
-      //seen message successfully
-      // console.log('seen message successfully');
-      socket.broadcast.emit(data.username+'_seen_message', {
-        sender: data.target,
-        username: socket.username,
-        time: timeStamp,
+    if (groupId) {
+      //seen group chat
+
+    } else {
+      chatManager.seenMessage(userId, contactId, timeStamp, function() {
+        //seen message successfully
+        // console.log('seen message successfully');
+        socket.broadcast.emit(data.username+'_seen_message', {
+          sender: data.target,
+          username: socket.username,
+          time: timeStamp,
+        });
       });
-    });
+    }
   });
 
   // when the client emits 'add user', this listens and executes
-  socket.on('add user', function (username) {
+  socket.on('add user', function (data) {
     var authen = socket.session.get("authen");
+    // console.log(username);
 
     if (!authen) {
       return
     }
+  
+    username = data.username;
+    group = data.group;
+
+    if (!groupUsers.hasOwnProperty(group)) {
+      groupUsers[group] = [];
+    }
+
+    if (groupUsers[group].indexOf(username) == -1) {
+      groupUsers[group].push(username);
+    }
+    
 
     listUsers[username] = {
       'username': 'chatbox_'+authen.id,
@@ -121,6 +169,12 @@ io.on('connection', function (socket) {
     };
     socket.emit('list-user-online', {
       'users': listUsers,
+      'groups': groupUsers,
+    });
+
+    socket.broadcast.emit('new-user-online', {
+      'user': listUsers[username],
+      'group': group,
     });
 
     console.log('add user ' + username);
@@ -128,10 +182,6 @@ io.on('connection', function (socket) {
 
     var userId = parseInt(username.replace("chatbox_", ""));
     socket.userId = userId;
-
-    socket.broadcast.emit('new-user-online', {
-      'user': listUsers[username],
-    });
 
     // we store the username in the socket session for this client
     socket.username = username;
@@ -155,12 +205,24 @@ io.on('connection', function (socket) {
   socket.on('load_more_message', function(data) {
     var contactId = parseInt(data.target.replace("chatbox_", ""));
     var lastMessageId = data.lastMessageId || 0;
-    chatManager.getHistoryMessage(data.userId, contactId, lastMessageId, function(listMessage) {
-      socket.emit(socket.username+'_load_more_message', {
-        target: contactId,
-        listMessage: listMessage,
+    var groupId = data.group;
+
+    if (groupId) {
+      chatManager.getHistoryMessageGroup(groupId, lastMessageId, function(listMessage) {
+        socket.emit(socket.username+'_load_more_message', {
+          target: data.target,
+          listMessage: listMessage,
+          group: groupId,
+        });
       });
-    });
+    } else {
+      chatManager.getHistoryMessage(data.userId, contactId, lastMessageId, function(listMessage) {
+        socket.emit(socket.username+'_load_more_message', {
+          target: contactId,
+          listMessage: listMessage,
+        });
+      });
+    }
   })
 
   socket.on('block_contact', function(data) {
@@ -177,10 +239,26 @@ io.on('connection', function (socket) {
     });
   })
 
-  socket.on('delete message', function(idMessage) {
-    chatManager.removeMessage(socket.userId, idMessage, function(result) {
-      
-    });
+  socket.on('delete message', function(data) {
+    var authen = socket.session.get("authen");
+    // console.log(username);
+
+    if (!authen) {
+      return
+    }
+
+    var idMessage = data.idMessage;
+    var groupId = data.group;
+
+    if (groupId) {
+      chatManager.removeMessageGroup(socket.userId, groupId, idMessage, function(result) {
+        
+      });
+    } else {
+      chatManager.removeMessage(socket.userId, idMessage, function(result) {
+        
+      });
+    }
   })
 
   // when the client emits 'typing', we broadcast it to others

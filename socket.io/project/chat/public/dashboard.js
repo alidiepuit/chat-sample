@@ -48,9 +48,9 @@ $(function() {
                 timeout: 3000
             });
 
-  if (username) {
-    socket.emit('add user', username);
-  }
+  var token = sessId || "";
+
+  socket.emit("getToken", {token: token});
 
   function addParticipantsMessage (data) {
     var message = '';
@@ -64,22 +64,20 @@ $(function() {
 
   // Sends a chat message
   function sendMessage () {
-    var message = $('#input_' + target + '_' + adsId).val();
+    var message = $('#input_' + target).val();
     // Prevent markup from being injected into the message
     message = cleanInput(message);
     // if there is a non-empty message and a socket connection
     if (message && connected) {
-      $('#input_' + target + '_' + adsId).val('');
+      $('#input_' + target).val('');
+      var groupId = $('#input_' + target).data('group') || '';
       
-      adsId = $('#' + target + '_' + adsId).data('ads-id');
-      adsTitle = $('#' + target + '_' + adsId).data('ads-title');
       // tell server to execute 'new message' and send along one parameter
       socket.emit('new message', {
         message: message,
         target: target,
         displayName: displayName,
-        adsId: adsId || 0,
-        adsTitle: adsTitle || '',
+        group: groupId,
       });
     }
   }
@@ -90,20 +88,20 @@ $(function() {
     addMessageElement($el, options);
   }
 
-  function addContact(tar, aId, aTitle, displayName, message, idMessage, container, blocked, time, avatar) {
-    var $img = avatar ? $('<img src="/uploads/avatar/' + avatar + '"/>') : $('<span class="icon-user"/>');
+  function addContact(tar, displayName, message, container, blocked, time, avatar) {
+    var $img = avatar ? $('<img src="/static/image/' + avatar + '"/>') : $('<span class="icon-user"/>');
     var $eleAvatar = $('<div class="col-sm-3 col-xs-3 sideBar-avatar pinky-template"/>')
       .append($('<div class="avatar-icon"/>').append($('<span class="tg-usericon"/>').append($img).append('<span ng-if="" fl-online-offline-icon="" size="" class="GroupChatThumbnail-onlineStatus online-status" data-user-id="'+tar+'" data-size="small" data-status="offline"></span>')));
     
     var $eleMain = $('<div class="col-sm-9 col-xs-9 sideBar-main"/>')
-      .append($('<div class="row"/>').append($('<div class="col-sm-8 col-xs-8 sideBar-name"/>').append($('<div class="name-meta"/>').html(displayName + '<h6>'+aTitle+'</h6>'))));
+      .append($('<div class="row"/>').append($('<div class="col-sm-8 col-xs-8 sideBar-name"/>').append($('<div class="name-meta"/>').html(displayName))));
 
     if (message) {
       $eleMain = $('<div class="col-sm-9 col-xs-9 sideBar-main"/>')
       .append($('<div class="row"/>').append($('<div class="col-sm-8 col-xs-8 sideBar-name"/>').append($('<div class="name-meta"/>').html('<span class="name">'+displayName+'</span>' + '<h6>'+message+'</h6>'))));
     }
 
-    var $eleBody = $('<div class="row sideBar-body" data-target="'+tar+'" data-ads-id="'+aId+'" data-display-name="'+displayName+'" data-ads-title="'+aTitle+'" data-message-id="'+idMessage+'" data-blocked="'+blocked+'"/>')
+    var $eleBody = $('<div class="row sideBar-body" data-target="'+tar+'" data-display-name="'+displayName+'" />')
       .append($eleAvatar)
       .append($eleMain);
 
@@ -118,39 +116,9 @@ $(function() {
     container.append($eleBody);
   }
 
-  function openChatBox(tar, aId, displayName, blocked) {
-    if ($('#' + tar + '_' + aId).length > 0) {
-      return;
-    }
-
-
-    var chatbox = $('#chatbox_template').clone();
-    $(chatbox).attr('id', tar + '_' + aId);
-    $(chatbox).attr('data-ads-id', aId);
-    $(chatbox).attr('data-ads-title', adsTitle);
-    $(chatbox).find('.load_more_message').attr('data-target', tar);
-    $(chatbox).find('.load_more_message').attr('data-ads-id', aId);
-    $(chatbox).removeAttr('data-chatbox-template');
-    $('#chat-box').append(chatbox);
-    $(chatbox).addClass('show');
-    $(chatbox).find('.btn-chat').attr('data-target', tar);
-    $(chatbox).find('.btn-chat').attr('data-ads-id', aId);
-    $(chatbox).find('.inputMessage').attr('data-target', tar);
-    $(chatbox).find('.heading-name-meta').html('<span class="glyphicon glyphicon-comment"></span>'+displayName + '<h6>' + adsTitle + '</h6>');
-    $(chatbox).find('.block-contact').attr('data-target', tar);
-    $(chatbox).find('.block-contact').attr('data-ads-id', aId);
-    $(chatbox).find('.unblock-contact').attr('data-target', tar);
-    $(chatbox).find('.unblock-contact').attr('data-ads-id', aId);
-
-    if (blocked && blocked > 0) {
-      $(chatbox).find('.unblock-contact').removeClass('hide');
-    } else {
-      $(chatbox).find('.block-contact').removeClass('hide');
-    }
-    
-    $messages = $('#' + tar + '_' + aId).find('.msg_container_base');
+  var initControlBoxChat = function(tar) {
+    $messages = $('#' + tar).find('.msg_container_base');
     $messages.attr('data-target', tar);
-    $messages.attr('data-ads-id', aId);
     /*
     Load more history
     */
@@ -160,14 +128,20 @@ $(function() {
         checkingThenLoadMoreMessage($(this));
       }
     });
-    
-    $inputMessage = $('#' + tar + '_' + aId).find('.inputMessage');
-    $($inputMessage).attr('id', 'input_' + tar + '_' + aId);
+
+    $('div.load_more_message').unbind('click');
+    $('div.load_more_message').click(function() {
+      var target = $(this).data('target');
+      $messages = $('#' + target).find('.msg_container_base');
+      checkingThenLoadMoreMessage($messages);
+    })
+
+    $inputMessage = $('#' + tar).find('.inputMessage');
+    $($inputMessage).attr('id', 'input_' + tar);
     
     $inputMessage.unbind('keypress');
     $inputMessage.on("keypress", function (e) {            
       target = $(this).data('target');
-      adsId = aId;
       if (e.keyCode == 13) {
         if (username) {
           sendMessage();
@@ -180,7 +154,6 @@ $(function() {
     $inputMessage.unbind('input');
     $inputMessage.on('input', function() {
       target = $(this).data('target');
-      adsId = $(this).data('ads-id');
       updateTyping();
     });
 
@@ -188,32 +161,53 @@ $(function() {
     $inputMessage.unbind('click');
     $inputMessage.click(function () {
       target = $(this).data('target');
-      adsId = $(this).data('ads-id');
-      $('#input_'+target + '_' + aId).focus();
+      $('#input_'+target).focus();
     });
 
-    $('#'+tar + '_' + aId).find('.btn-chat').unbind('click');
-    $('#'+tar + '_' + aId).find('.btn-chat').click(function() {
+    $('#'+tar).find('.btn-chat').unbind('click');
+    $('#'+tar).find('.btn-chat').click(function() {
       target = $(this).data('target');
-      adsId = $(this).data('ads-id');
       sendMessage();
       socket.emit('stop typing');
       typing = false;
     })
 
-    $('#'+tar + '_' + aId).unbind('click');
-    $('#'+tar + '_' + aId).click(function() {
+    $('#'+tar).unbind('click');
+    $('#'+tar).click(function() {
       decreaseNotify(tar);
-      updateSeenMessage(username, tar, aId);
+      updateSeenMessage(username, tar);
     });
+  }
 
-    $('div.load_more_message').unbind('click');
-    $('div.load_more_message').click(function() {
-      var target = $(this).data('target');
-      var adsId = $(this).data('ads-id');
-      $messages = $('#' + target + '_' + adsId).find('.msg_container_base');
-      checkingThenLoadMoreMessage($messages);
-    })
+  function openChatBox(tar, displayName, blocked) {
+    if ($('#' + tar).length > 0) {
+      return;
+    }
+
+
+    var chatbox = $('#chatbox_template').clone();
+    $(chatbox).attr('id', tar);
+    $(chatbox).find('.load_more_message').attr('data-target', tar);
+    $(chatbox).removeAttr('data-chatbox-template');
+    $('#chat-box').append(chatbox);
+    $(chatbox).addClass('show');
+    $(chatbox).find('.btn-chat').attr('data-target', tar);
+    $(chatbox).find('.inputMessage').attr('data-target', tar);
+    $(chatbox).find('.heading-name-meta').html('<span class="glyphicon glyphicon-comment"></span>'+displayName);
+    $(chatbox).find('.block-contact').attr('data-target', tar);
+    $(chatbox).find('.unblock-contact').attr('data-target', tar);
+
+    if (blocked && blocked > 0) {
+      $(chatbox).find('.unblock-contact').removeClass('hide');
+    } else {
+      $(chatbox).find('.block-contact').removeClass('hide');
+    }
+    
+    
+    
+    initControlBoxChat(tar);
+
+    
 
     $('.row.heading .block-contact').unbind('click');
     $('.row.heading .block-contact').click(function() {
@@ -249,13 +243,13 @@ $(function() {
     $('#base-contact .row.sideBar-body[data-target='+target+']').attr('data-blocked', blocked);
   }
 
-  function updateSeenMessage(username, tar, adsId) {
+  function updateSeenMessage(username, tar) {
     //username: sender
     //target: receiver
     socket.emit('seen message', {
-      username: target,
+      username: target || '',
       target: username,
-      adsId: adsId,
+      group: groupId,
     })
   }
 
@@ -272,7 +266,7 @@ $(function() {
     if (data.username == username) {
       var $messageBodyDiv = $('<div class="col-sm-12 message-main-sender"/>').append($('<div class="sender"/>').append($('<div class="message-text"/>').text(data.message)).append($('<div class="col-sm-1 col-xs-1 delete-message" data-id="'+data.idMessage+'"/>').append($('<i class="fa fa-close"/>'))));
     } else {
-      var $messageBodyDiv = $('<div class="col-sm-12 message-main-receiver"/>').append($('<div class="receiver"/>').append($('<div class="message-text"/>').text(data.message)));
+      var $messageBodyDiv = $('<div class="col-sm-12 message-main-receiver"/>').append($('<div class="receiver"/>').append($('<div class="message-text"/>').addClass('avatar-icon').append($('<img/>').attr('src','/static/image/'+data.avatar)).append($('<span>').text(data.message))));
     }
 
     var typingClass = data.typing ? 'typing' : '';
@@ -293,22 +287,25 @@ $(function() {
     $('.delete-message').unbind('click');
     $('.delete-message').click(function() {
       var idMessage = $(this).data('id');
-      socket.emit('delete message', idMessage);
+      socket.emit('delete message', {
+        'idMessage': idMessage,
+        group: groupId,
+      });
       $('.row.message-body[data-id='+idMessage+']').remove();
     })
   }
 
-  function addSeenMessage(target, adsId, time) {
-    if ($('#' + target + '_' + adsId).find('.msg_seen').length > 0) {
-      var messageDiv = $('#' + target + '_' + adsId).find('.msg_seen');
-      $('#' + target + '_' + adsId).find('.msg_container_base').append(messageDiv);
+  function addSeenMessage(target, time) {
+    if ($('#' + target).find('.msg_seen').length > 0) {
+      var messageDiv = $('#' + target).find('.msg_seen');
+      $('#' + target).find('.msg_container_base').append(messageDiv);
       $(messageDiv).find("time.timeago").attr('datetime', timeAgo(time));
       $(messageDiv).find("time.timeago").attr('timeago', '');
       $("time.timeago").timeago();
       return;
     }
     var $messageDiv = $('<div class="msg_seen"/>').append('seen&nbsp;-&nbsp;<time class="timeago" datetime="'+timeAgo(time)+'"></time>');
-    $messages = $($('#' + target + '_' + adsId).find('.msg_container_base'));
+    $messages = $($('#' + target).find('.msg_container_base'));
     $messages.append($messageDiv);
     $messageDiv.attr("style", "");
     if ($messages.length > 0) {
@@ -356,7 +353,7 @@ $(function() {
       $el.hide().fadeIn(FADE_TIME);
     }
 
-    $messages = $($('#' + target + '_' + adsId).find('.msg_container_base'));
+    $messages = $($('#' + target).find('.msg_container_base'));
     if (options.prepend) {
       $messages.prepend($el);
     } else {
@@ -434,46 +431,6 @@ $(function() {
     connected = true;
     // console.log(data);
     
-
-    var notification = data.notification || '';
-    if (notification) {
-      for(target in notification) {
-        if (notification.hasOwnProperty(target)) {
-          listAds = notification[target];
-          for(ads in listAds) {
-            for(i = 0; i < listAds[ads]; i++) {
-              increaseNotify('chatbox_' + target);
-            }
-          }
-        }
-      }
-
-      $('.chatbox.row.chat-window:not([data-chatbox-template])').remove();
-      var listUnseenMessage = data.listUnseenMessage || [];
-      listUnseenMessage.forEach(function(message, idx) {
-        if (userId == message.contactId) {
-          onReceiveMessage({
-            'sender': 'chatbox_' + message.userId,
-            'adsId': message.adsId,
-            'adsTitle': message.adsTitle,
-            'displayName': message.displayName,
-            'message': message.message,
-            'idMessage': message.idMessage,
-            'username': message.username,
-          });
-        } else {
-          onAddMessage({
-            'sender': 'chatbox_' + message.contactId,
-            'adsId': message.adsId,
-            'adsTitle': message.adsTitle,
-            'message': message.message,
-            'idMessage': message.idMessage,
-          })
-        }
-        
-      });
-    }
-    
   });
 
   // Whenever the server emits 'new message', update the chat body
@@ -482,14 +439,22 @@ $(function() {
     onReceiveMessage(data);
   });
 
+  socket.on('group'+groupId, function (data) {
+    data['avatar'] = listUsers[data.userId]?listUsers[data.userId].avatar:'';
+    onReceiveMessage(data);
+  })
+
   var onReceiveMessage = function(data, options) {
     target = data.sender;
-    adsId = data.adsId;
-    adsTitle = data.adsTitle;
-    openChatBox(target, adsId, data.displayName);
-    addChatMessage(data, options);
+    var groupId = data.group || '';
 
-    $(".row.sideBar-body[data-target="+target+"][data-ads-id="+adsId+"]").effect("highlight", {}, 3000);
+    if (groupId) {
+      //
+    } else {
+      openChatBox(target, data.displayName);
+    }
+    
+    addChatMessage(data, options);
   }
 
   var onAddMessage = function(data, options) {
@@ -498,8 +463,6 @@ $(function() {
       return;
     }
     target = data.sender;
-    adsId = data.adsId;
-    adsTitle = data.adsTitle;
     addChatMessage({
       username: username,
       message: data.message,
@@ -512,18 +475,17 @@ $(function() {
       return
     }
     ele.attr('data-loading-more', 1);
-    var target = ele.data('target');
-    var adsId = ele.data('ads-id');
+    target = ele.data('target');
     var lastId = ele.find('.row.message-body:first').data('id');
-    loadMoreMessage(target, adsId, lastId);
+    loadMoreMessage(target, lastId);
   }
 
-  var loadMoreMessage = function(tar, aId, lastId) {
+  var loadMoreMessage = function(tar, lastId) {
     socket.emit('load_more_message', {
       userId: userId,
       target: tar,
-      adsId: aId,
       lastMessageId: lastId,
+      group: groupId,
     })
   }
 
@@ -539,51 +501,79 @@ $(function() {
     $('.row.sideBar-body').unbind('click');
     $('.row.sideBar-body').click(function(event) {
       target = $(this).data('target');
-      adsId = $(this).data('ads-id');
-      adsTitle = $(this).data('ads-title');
       var displayName = $(this).data('display-name');
       var blocked = $(this).data('blocked');
 
       $('.conversation').removeClass('show');
-      $('#' + target + '_' + adsId).addClass('show');
-      openChatBox(target, adsId, displayName, blocked);
+      $('#' + target).addClass('show');
+      openChatBox(target, displayName, blocked);
     })
   }
 
   socket.on(username+'_load_more_message', function(data) {
-    // console.log(data);
-    $loadMoreElement = $('#chatbox_' + data.target + '_' + data.adsId).find('.msg_container_base').find('.load_more_message');
-    var listMessage = data.listMessage || [];
-    listMessage.forEach(function(message, idx) {
-      if (userId == message.contactId) {
-        onReceiveMessage({
-          'sender': 'chatbox_' + data.target,
-          'adsId': data.adsId,
-          'adsTitle': data.adsTitle,
-          'displayName': '',
-          'message': message.message,
-          'idMessage': message.idMessage,
-        }, {
-          prepend: true,
-          scrollTop: true,
-        });
+    if (data.group) {
+      // console.log(data);
+      $loadMoreElement = $('#' + data.target).find('.msg_container_base').find('.load_more_message');
+      var listMessage = data.listMessage || [];
+      listMessage.forEach(function(message, idx) {
+        if (userId != message.userId) {
+          onReceiveMessage({
+            'sender': data.target,
+            'displayName': '',
+            'message': message.message,
+            'idMessage': message.idMessage,
+            avatar: listUsers[message.userId].avatar,
+          }, {
+            prepend: true,
+            scrollTop: true,
+          });
+        } else {
+          onAddMessage({
+            'sender': data.target,
+            'message': message.message,
+            'idMessage': message.idMessage,
+          }, {
+            prepend: true,
+            scrollTop: true,
+          })
+        }
+      });
+      if (listMessage.length == 0) {
+        $loadMoreElement.remove();
       } else {
-        onAddMessage({
-          'sender': 'chatbox_' + data.target,
-          'adsId': data.adsId,
-          'adsTitle': '',
-          'message': message.message,
-          'idMessage': message.idMessage,
-        }, {
-          prepend: true,
-          scrollTop: true,
-        })
+        $('#' + data.target).find('.msg_container_base').prepend($loadMoreElement);
       }
-    });
-    if (listMessage.length == 0) {
-      $loadMoreElement.remove();
     } else {
-      $('#chatbox_' + data.target + '_' + data.adsId).find('.msg_container_base').prepend($loadMoreElement);
+      // console.log(data);
+      $loadMoreElement = $('#chatbox_' + data.target).find('.msg_container_base').find('.load_more_message');
+      var listMessage = data.listMessage || [];
+      listMessage.forEach(function(message, idx) {
+        if (userId == message.contactId) {
+          onReceiveMessage({
+            'sender': 'chatbox_' + data.target,
+            'displayName': '',
+            'message': message.message,
+            'idMessage': message.idMessage,
+          }, {
+            prepend: true,
+            scrollTop: true,
+          });
+        } else {
+          onAddMessage({
+            'sender': 'chatbox_' + data.target,
+            'message': message.message,
+            'idMessage': message.idMessage,
+          }, {
+            prepend: true,
+            scrollTop: true,
+          })
+        }
+      });
+      if (listMessage.length == 0) {
+        $loadMoreElement.remove();
+      } else {
+        $('#chatbox_' + data.target).find('.msg_container_base').prepend($loadMoreElement);
+      }
     }
   });
 
@@ -592,25 +582,7 @@ $(function() {
   });
 
   socket.on(username+'_seen_message', function (data) {
-    addSeenMessage(data.sender, data.adsId, data.time);
-  })
-
-  socket.on(username+'_list_contact', function (data) {
-    // console.log(data);
-    var listContact = data.listContact || [];
-    $('#chat-box').find('.row.sideBar').html('');
-    $('.dropdown .dropdown-chat-box .row.sideBar').html('');
-    for (idx in listContact) {
-      var listAds = listContact[idx];
-      for (i in listAds) {
-        var row = listAds[i];
-        
-        //add to dashboard
-        addContact('chatbox_'+row.contactId, row.adsId, row.adsTitle, row.displayName, '', row.idMessage,
-          $('#base-contact'), row.blocked, null, row.avatar);
-      }
-    }
-    sortContactByLastMessageId($('#base-contact .row.sideBar-body'), 'message-id', $('#base-contact'));
+    addSeenMessage(data.sender, data.time);
   })
 
   // Whenever the server emits 'user joined', log it in the chat body
@@ -649,12 +621,56 @@ $(function() {
   socket.on('reconnect', function () {
     log('you have been reconnected');
     if (username) {
-      socket.emit('add user', username);
+      socket.emit('add user', {
+        'username': username,
+        'group': groupId,
+      });
     }
   });
 
   socket.on('reconnect_error', function () {
     log('attempt to reconnect has failed');
+  });
+
+  socket.on('list-user-online', function(data) {
+    $('#chat-box').find('.row.sideBar').html('');
+    groups = data.groups;
+    for(var key in data.users) {
+
+      if (key != username && groups[groupId].indexOf(key) != -1 
+        && data.users.hasOwnProperty(key)) {
+
+        var val = data.users[key];
+        listUsers[val.userId] = val;
+        addContact('chatbox_'+val.userId, val.displayName, '',
+            $('#chat-box').find('.row.sideBar'), false, null, val.avatar);
+      }
+    }
+  });
+
+  socket.on('new-user-online', function(data) {
+    if (data.group != groupId || $('#chat-box .row.sideBar-body[data-target='+data.user.username+']').length!=0) {
+      return;
+    }
+    listUsers[data.user.userId] = data.user;
+    addContact('chatbox_'+data.user.userId, data.user.displayName, '',
+      $('#chat-box').find('.row.sideBar'), false, null, data.user.avatar); 
+  });
+
+  socket.on("gotToken", function(message){
+      console.log(message);
+      if (username) {
+        initControlBoxChat('group'+groupId);
+
+        socket.emit('add user', {
+          'username': username,
+          'group': groupId,
+        });
+      }
+      if(message.token != "") {
+          localStorage.setItem("token", message.token);
+          token = message.token;
+      }
   });
 
   if (username) {
